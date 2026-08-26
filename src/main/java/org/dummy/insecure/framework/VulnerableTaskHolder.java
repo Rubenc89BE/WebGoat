@@ -10,6 +10,9 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 // TODO move back to lesson
+// WARNING: This class contains a dangerous readObject() method that executes commands.
+// It should ONLY be deserialized through ValidatingObjectInputStream with proper class allowlisting.
+// Direct deserialization with standard ObjectInputStream creates a security vulnerability.
 public class VulnerableTaskHolder implements Serializable {
 
   private static final long serialVersionUID = 2;
