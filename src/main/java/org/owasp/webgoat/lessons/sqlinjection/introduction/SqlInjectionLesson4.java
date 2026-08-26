@@ -57,24 +57,44 @@ public class SqlInjectionLesson4 extends AssignmentEndpoint {
 
   protected AttackResult injectableQuery(String query) {
     try (Connection connection = dataSource.getConnection()) {
-      try (Statement statement =
-          connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY)) {
-        statement.executeUpdate(query);
-        connection.commit();
-        ResultSet results = statement.executeQuery("SELECT phone from employees;");
-        StringBuilder output = new StringBuilder();
-        // user completes lesson if column phone exists
-        if (results.first()) {
-          output.append("<span class='feedback-positive'>" + query + "</span>");
-          return success(this).output(output.toString()).build();
-        } else {
-          return failed(this).output(output.toString()).build();
+      try {
+        // Disable auto-commit to use transaction control
+        connection.setAutoCommit(false);
+        try (Statement statement =
+            connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY)) {
+          statement.executeUpdate(query);
+          // Check if the solution is correct before committing
+          if (checkSolution(connection)) {
+            // Rollback to prevent persistent changes while still validating the lesson
+            connection.rollback();
+            return success(this).output("<span class='feedback-positive'>" + query + "</span>").build();
+          } else {
+            connection.rollback();
+            return failed(this).output("The phone column does not exist in the employees table.").build();
+          }
+        } catch (SQLException sqle) {
+          connection.rollback();
+          return failed(this).output(sqle.getMessage()).build();
         }
-      } catch (SQLException sqle) {
-        return failed(this).output(sqle.getMessage()).build();
+      } catch (SQLException e) {
+        return failed(this).output(this.getClass().getName() + " : " + e.getMessage()).build();
       }
     } catch (Exception e) {
       return failed(this).output(this.getClass().getName() + " : " + e.getMessage()).build();
+    }
+  }
+
+  private boolean checkSolution(Connection connection) {
+    try {
+      var stmt =
+          connection.prepareStatement(
+              "SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND COLUMN_NAME = ?");
+      stmt.setString(1, "EMPLOYEES");
+      stmt.setString(2, "PHONE");
+      var resultSet = stmt.executeQuery();
+      return resultSet.next();
+    } catch (SQLException throwables) {
+      return false;
     }
   }
 }
