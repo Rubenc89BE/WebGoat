@@ -97,8 +97,10 @@ public class MissingFunctionACUsers {
       consumes = "application/json",
       produces = "application/json")
   @ResponseBody
-  public User addUser(@RequestBody User newUser) {
+  public User addUser(@RequestBody UserRequest userRequest) {
     try {
+      // Create a User object with admin=false to prevent privilege escalation
+      User newUser = new User(userRequest.getUsername(), userRequest.getPassword(), false);
       userRepository.save(newUser);
       return newUser;
     } catch (Exception ex) {

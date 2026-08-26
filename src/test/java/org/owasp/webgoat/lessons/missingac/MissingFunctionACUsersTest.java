@@ -60,14 +60,15 @@ class MissingFunctionACUsersTest extends LessonTest {
   void addUser() throws Exception {
     var user =
         """
-                {"username":"newUser","password":"newUser12","admin": "true"}
+                {"username":"newUser","password":"newUser12"}
                 """;
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/access-control/users")
                 .header("Content-type", "application/json")
                 .content(user))
-        .andExpect(status().isOk());
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.admin", CoreMatchers.is(false)));
 
     mockMvc
         .perform(
@@ -76,4 +77,22 @@ class MissingFunctionACUsersTest extends LessonTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.size()", is(4)));
   }
+
+  @Test
+  void addUserWithAdminFieldShouldBeIgnored() throws Exception {
+    // Attempt to create a user with admin=true in the request
+    var userWithAdmin =
+        """
+                {"username":"attackerUser","password":"password123","admin":true}
+                """;
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/access-control/users")
+                .header("Content-type", "application/json")
+                .content(userWithAdmin))
+        .andExpect(status().isOk())
+        // The admin field should be false regardless of what was sent
+        .andExpect(jsonPath("$.admin", CoreMatchers.is(false)));
+  }
+
 }
