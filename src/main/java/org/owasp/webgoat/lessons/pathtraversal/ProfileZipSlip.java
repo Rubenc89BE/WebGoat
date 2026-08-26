@@ -70,6 +70,16 @@ public class ProfileZipSlip extends ProfileUploadBase {
       Enumeration<? extends ZipEntry> entries = zip.entries();
       while (entries.hasMoreElements()) {
         ZipEntry e = entries.nextElement();
+        
+        // Validate the ZIP entry to prevent path traversal attacks
+        if (!isValidZipEntry(tmpZipDirectory.toFile(), e)) {
+          log.warn("Rejected malicious ZIP entry: {}", e.getName());
+          return failed(this)
+              .feedback("path-traversal-zip-slip.invalid-entry")
+              .feedbackArgs(e.getName())
+              .build();
+        }
+        
         File f = new File(tmpZipDirectory.toFile(), e.getName());
         InputStream is = zip.getInputStream(e);
         Files.copy(is, f.toPath(), StandardCopyOption.REPLACE_EXISTING);
@@ -79,6 +89,34 @@ public class ProfileZipSlip extends ProfileUploadBase {
     } catch (IOException e) {
       return failed(this).output(e.getMessage()).build();
     }
+  }
+
+  /**
+   * Validates that a ZIP entry does not contain path traversal sequences that would allow
+   * extraction outside the intended directory.
+   *
+   * @param destinationDir the intended extraction directory
+   * @param zipEntry the ZIP entry to validate
+   * @return true if the entry is safe to extract, false otherwise
+   * @throws IOException if canonical path resolution fails
+   */
+  private boolean isValidZipEntry(File destinationDir, ZipEntry zipEntry) throws IOException {
+    String entryName = zipEntry.getName();
+    
+    // Reject absolute paths
+    File entryFile = new File(entryName);
+    if (entryFile.isAbsolute()) {
+      return false;
+    }
+    
+    // Resolve the entry against the destination directory and verify containment
+    File destinationFile = new File(destinationDir, entryName);
+    String canonicalDestinationPath = destinationFile.getCanonicalPath();
+    String canonicalDestinationDir = destinationDir.getCanonicalPath();
+    
+    // Ensure the resolved path is within the destination directory
+    return canonicalDestinationPath.startsWith(canonicalDestinationDir + File.separator)
+        || canonicalDestinationPath.equals(canonicalDestinationDir);
   }
 
   private AttackResult isSolved(byte[] currentImage, byte[] newImage) {
