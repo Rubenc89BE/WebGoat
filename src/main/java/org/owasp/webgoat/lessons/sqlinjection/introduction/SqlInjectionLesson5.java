@@ -27,6 +27,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.regex.Pattern;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -46,6 +47,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class SqlInjectionLesson5 extends AssignmentEndpoint {
 
   private final LessonDataSource dataSource;
+  
+  // Pattern to validate that the query is only the intended GRANT statement for the lesson
+  // This restricts the SQL to only GRANT SELECT on grant_rights table to unauthorized_user
+  private static final Pattern ALLOWED_GRANT_PATTERN = 
+      Pattern.compile(
+          "^\\s*GRANT\\s+SELECT\\s+ON\\s+grant_rights\\s+TO\\s+unauthorized_user\\s*;?\\s*$",
+          Pattern.CASE_INSENSITIVE);
 
   public SqlInjectionLesson5(LessonDataSource dataSource) {
     this.dataSource = dataSource;
@@ -73,11 +81,25 @@ public class SqlInjectionLesson5 extends AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
+    // Validate that the query matches the allowed pattern to prevent arbitrary SQL execution
+    if (query == null || query.trim().isEmpty()) {
+      return failed(this)
+          .output("Query cannot be empty")
+          .build();
+    }
+    
+    // Check if the query matches the allowed GRANT statement pattern
+    if (!ALLOWED_GRANT_PATTERN.matcher(query).matches()) {
+      return failed(this)
+          .output("Invalid query. Only GRANT SELECT on grant_rights to unauthorized_user is allowed for this lesson.<br>Your query was: " + query)
+          .build();
+    }
+    
     try (Connection connection = dataSource.getConnection()) {
       try (Statement statement =
           connection.createStatement(
               ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE)) {
-        statement.executeQuery(query);
+        statement.execute(query);
         if (checkSolution(connection)) {
           return success(this).build();
         }
