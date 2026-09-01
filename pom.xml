@@ -154,6 +154,37 @@
     <dependencies>
 
       <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-core</artifactId>
+        <version>6.0.23-tuxcare.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-webmvc</artifactId>
+        <version>6.0.23-tuxcare.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-web</artifactId>
+        <version>6.0.23-tuxcare.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-beans</artifactId>
+        <version>6.0.23-tuxcare.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-expression</artifactId>
+        <version>6.0.23-tuxcare.4</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-context</artifactId>
+        <version>6.0.23-tuxcare.4</version>
+      </dependency>
+
+      <dependency>
         <groupId>org.ow2.asm</groupId>
         <artifactId>asm</artifactId>
         <version>9.5</version>
@@ -419,6 +450,13 @@
       </snapshots>
       <id>central</id>
       <url>https://repo.maven.apache.org/maven2</url>
+    </repository>
+    <repository>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+      <id>aikido</id>
+      <url>https://maven.aikido.io/222442e75c07084af5f51</url>
     </repository>
   </repositories>
   <pluginRepositories>
