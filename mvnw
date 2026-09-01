@@ -203,6 +203,17 @@ fi
 # Extension to allow automatically downloading the maven-wrapper.jar from Maven-central
 # This allows using the maven wrapper in projects that prohibit checking in binary data.
 ##########################################################################################
+
+# Function to redact sensitive information from URLs before logging
+redact_url() {
+    local url="$1"
+    # Remove userinfo (username:password) - match everything between :// and @
+    local redacted=$(echo "$url" | sed -E 's|(.*://)[^@]*@|\1***:***@|')
+    # Remove query parameters - match everything after ?
+    redacted=$(echo "$redacted" | sed -E 's|\?.*|?***|')
+    echo "$redacted"
+}
+
 if [ -r "$BASE_DIR/.mvn/wrapper/maven-wrapper.jar" ]; then
     if [ "$MVNW_VERBOSE" = true ]; then
       echo "Found .mvn/wrapper/maven-wrapper.jar"
@@ -221,7 +232,7 @@ else
       esac
     done < "$BASE_DIR/.mvn/wrapper/maven-wrapper.properties"
     if [ "$MVNW_VERBOSE" = true ]; then
-      echo "Downloading from: $jarUrl"
+      echo "Downloading from: $(redact_url "$jarUrl")"
     fi
     wrapperJarPath="$BASE_DIR/.mvn/wrapper/maven-wrapper.jar"
     if $cygwin; then
