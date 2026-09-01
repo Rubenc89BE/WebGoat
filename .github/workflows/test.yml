@@ -42,7 +42,7 @@ jobs:
                     path: ~/.m2
                     key: ubuntu-latest-m2-${{ hashFiles('**/pom.xml') }}
                     restore-keys: ubuntu-latest-m2-
-            -   uses: BSFishy/pip-action@v1
+            -   uses: BSFishy/pip-action@8f2d471d809dc20b6ada98c91910b6ae6243f318 # v1
                 with:
                     packages: |
                         robotframework
@@ -53,7 +53,7 @@ jobs:
             -   name: Run with Maven
                 run: mvn --no-transfer-progress spring-boot:run &
             -   name: Wait to start
-                uses: ifaxity/wait-on-action@v1
+                uses: ifaxity/wait-on-action@a7d13170ec542bdca4ef8ac4b15e9c6aa00a6866 # v1.2.1
                 with:
                     resource: http://127.0.0.1:8080/WebGoat
             -   name: Test with Robotframework
@@ -61,7 +61,7 @@ jobs:
             # send report to forks only due to limits on permission tokens
             -   name: Send report to commit
                 if: github.repository != 'WebGoat/WebGoat' && github.event_name == 'push'
-                uses: joonvena/robotframework-reporter-action@v2.1
+                uses: joonvena/robotframework-reporter-action@1f1268f26d5eb74e298acec6f271962244524c1f # v2.1
                 with:
                     gh_access_token: ${{ secrets.GITHUB_TOKEN }}
                     report_path: 'robotreport'
