@@ -40,6 +40,21 @@ public class ProfileUploadBase extends AssignmentEndpoint {
 
     try {
       var uploadedFile = new File(uploadDirectory, fullName);
+      
+      // Validate path containment BEFORE any filesystem operation
+      String canonicalUploadDir = uploadDirectory.getCanonicalPath();
+      String canonicalUploadPath = uploadedFile.getCanonicalPath();
+      
+      if (!canonicalUploadPath.startsWith(canonicalUploadDir + File.separator)) {
+        // Path traversal attempt detected - reject before writing
+        return failed(this)
+            .attemptWasMade()
+            .feedback("path-traversal-profile-attempt")
+            .feedbackArgs(canonicalUploadPath)
+            .build();
+      }
+      
+      // Only create and write the file after validation passes
       uploadedFile.createNewFile();
       FileCopyUtils.copy(file.getBytes(), uploadedFile);
 
