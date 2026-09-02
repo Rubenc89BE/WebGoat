@@ -29,6 +29,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SigningKeyResolverAdapter;
 import io.jsonwebtoken.impl.TextCodec;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.lang3.StringUtils;
@@ -82,12 +83,12 @@ public class JWTFinalEndpoint extends AssignmentEndpoint {
                       @Override
                       public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
                         final String kid = (String) header.get("kid");
-                        try (var connection = dataSource.getConnection()) {
-                          ResultSet rs =
-                              connection
-                                  .createStatement()
-                                  .executeQuery(
-                                      "SELECT key FROM jwt_keys WHERE id = '" + kid + "'");
+                        try (var connection = dataSource.getConnection();
+                            var preparedStatement =
+                                connection.prepareStatement(
+                                    "SELECT key FROM jwt_keys WHERE id = ?")) {
+                          preparedStatement.setString(1, kid);
+                          ResultSet rs = preparedStatement.executeQuery();
                           while (rs.next()) {
                             return TextCodec.BASE64.decode(rs.getString(1));
                           }
