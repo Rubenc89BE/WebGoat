@@ -26,10 +26,10 @@ import static org.springframework.http.ResponseEntity.ok;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Header;
-import io.jsonwebtoken.Jwt;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.UnsupportedJwtException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -58,8 +58,8 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTRefreshEndpoint extends AssignmentEndpoint {
 
-  public static final String PASSWORD = "bm5nhSkxCXZkKRy4";
-  private static final String JWT_PASSWORD = "bm5n3SkxCX4kKRy4";
+  public static final String PASSWORD = "****KRy4";
+  private static final String JWT_PASSWORD = "****KRy4";
   private static final List<String> validRefreshTokens = new ArrayList<>();
 
   @PostMapping(
@@ -104,16 +104,30 @@ public class JWTRefreshEndpoint extends AssignmentEndpoint {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
     try {
-      Jwt jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parse(token.replace("Bearer ", ""));
-      Claims claims = (Claims) jwt.getBody();
+      Jws<Claims> jwt = Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(token.replace("Bearer ", ""));
+      Claims claims = jwt.getBody();
       String user = (String) claims.get("user");
       if ("Tom".equals(user)) {
-        if ("none".equals(jwt.getHeader().get("alg"))) {
-          return ok(success(this).feedback("jwt-refresh-alg-none").build());
-        }
         return ok(success(this).build());
       }
       return ok(failed(this).feedback("jwt-refresh-not-tom").feedbackArgs(user).build());
+    } catch (UnsupportedJwtException e) {
+      // This catches unsigned JWTs (alg=none) - for the lesson, we detect this specific case
+      // In production, this should simply reject the token
+      try {
+        // Parse without signature validation only to detect alg=none for educational feedback
+        io.jsonwebtoken.Jwt<?, ?> unsignedJwt = Jwts.parser().parse(token.replace("Bearer ", ""));
+        if ("none".equals(unsignedJwt.getHeader().get("alg"))) {
+          Claims claims = (Claims) unsignedJwt.getBody();
+          String user = (String) claims.get("user");
+          if ("Tom".equals(user)) {
+            return ok(success(this).feedback("jwt-refresh-alg-none").build());
+          }
+        }
+      } catch (Exception ignored) {
+        // Fall through to invalid token response
+      }
+      return ok(failed(this).feedback("jwt-invalid-token").build());
     } catch (ExpiredJwtException e) {
       return ok(failed(this).output(e.getMessage()).build());
     } catch (JwtException e) {
@@ -133,13 +147,19 @@ public class JWTRefreshEndpoint extends AssignmentEndpoint {
     String user;
     String refreshToken;
     try {
-      Jwt<Header, Claims> jwt =
-          Jwts.parser().setSigningKey(JWT_PASSWORD).parse(token.replace("Bearer ", ""));
+      Jws<Claims> jwt =
+          Jwts.parser().setSigningKey(JWT_PASSWORD).parseClaimsJws(token.replace("Bearer ", ""));
       user = (String) jwt.getBody().get("user");
       refreshToken = (String) json.get("refresh_token");
     } catch (ExpiredJwtException e) {
       user = (String) e.getClaims().get("user");
       refreshToken = (String) json.get("refresh_token");
+    } catch (UnsupportedJwtException e) {
+      // Reject unsigned JWTs (alg=none)
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    } catch (JwtException e) {
+      // Reject any other invalid JWTs
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
     if (user == null || refreshToken == null) {
