@@ -97,10 +97,9 @@ public class CommentsCache {
     var jc = JAXBContext.newInstance(Comment.class);
     var xif = XMLInputFactory.newInstance();
 
-    if (webSession.isSecurityEnabled()) {
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, ""); // Compliant
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); // compliant
-    }
+    // Always disable external entity resolution to prevent XXE attacks (secure by default)
+    xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, ""); // Compliant
+    xif.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); // compliant
 
     var xsr = xif.createXMLStreamReader(new StringReader(xml));
 
