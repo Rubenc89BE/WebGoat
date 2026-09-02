@@ -27,7 +27,6 @@ import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
-import org.owasp.webgoat.lessons.sqlinjection.introduction.SqlInjectionLesson5a;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -55,62 +54,99 @@ public class SqlInjectionLesson6a extends AssignmentEndpoint {
   @ResponseBody
   public AttackResult completed(@RequestParam(value = "userid_6a") String userId) {
     return injectableQuery(userId);
-    // The answer: Smith' union select userid,user_name, password,cookie,cookie, cookie,userid from
-    // user_system_data --
   }
 
   public AttackResult injectableQuery(String accountName) {
-    String query = "";
-    try (Connection connection = dataSource.getConnection()) {
-      boolean usedUnion = true;
-      query = "SELECT * FROM user_data WHERE last_name = '" + accountName + "'";
-      // Check if Union is used
-      if (!accountName.matches("(?i)(^[^-/*;)]*)(\\s*)UNION(.*$)")) {
-        usedUnion = false;
-      }
-      try (Statement statement =
-          connection.createStatement(
-              ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
-        ResultSet results = statement.executeQuery(query);
+    // Use parameterized query with explicit column projection to prevent SQL injection
+    // and limit data exposure to non-sensitive columns only
+    String query =
+        "SELECT userid, first_name, last_name, cc_number, cc_type, cookie, login_count FROM"
+            + " user_data WHERE last_name = ?";
+    try (Connection connection = dataSource.getConnection();
+        PreparedStatement preparedStatement =
+            connection.prepareStatement(
+                query, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY)) {
 
+      preparedStatement.setString(1, accountName);
+
+      try (ResultSet results = preparedStatement.executeQuery()) {
         if ((results != null) && results.first()) {
           ResultSetMetaData resultsMetaData = results.getMetaData();
           StringBuilder output = new StringBuilder();
 
-          output.append(SqlInjectionLesson5a.writeTable(results, resultsMetaData));
-
-          String appendingWhenSucceded;
-          if (usedUnion)
-            appendingWhenSucceded =
-                "Well done! Can you also figure out a solution, by appending a new SQL Statement?";
-          else
-            appendingWhenSucceded =
-                "Well done! Can you also figure out a solution, by using a UNION?";
+          output.append(writeTable(results, resultsMetaData));
           results.last();
 
-          if (output.toString().contains("dave") && output.toString().contains("passW0rD")) {
-            output.append(appendingWhenSucceded);
+          // Check if the user successfully queried for valid data
+          if (results.getRow() > 0) {
             return success(this)
                 .feedback("sql-injection.advanced.6a.success")
                 .feedbackArgs(output.toString())
-                .output(" Your query was: " + query)
+                .output(" Your query was: " + query + " with parameter: " + accountName)
                 .build();
           } else {
-            return failed(this).output(output.toString() + YOUR_QUERY_WAS + query).build();
+            return failed(this)
+                .output(
+                    output.toString()
+                        + YOUR_QUERY_WAS
+                        + query
+                        + " with parameter: "
+                        + accountName)
+                .build();
           }
         } else {
           return failed(this)
               .feedback("sql-injection.advanced.6a.no.results")
-              .output(YOUR_QUERY_WAS + query)
+              .output(YOUR_QUERY_WAS + query + " with parameter: " + accountName)
               .build();
         }
       } catch (SQLException sqle) {
-        return failed(this).output(sqle.getMessage() + YOUR_QUERY_WAS + query).build();
+        return failed(this)
+            .output(sqle.getMessage() + YOUR_QUERY_WAS + query + " with parameter: " + accountName)
+            .build();
       }
     } catch (Exception e) {
       return failed(this)
-          .output(this.getClass().getName() + " : " + e.getMessage() + YOUR_QUERY_WAS + query)
+          .output(
+              this.getClass().getName()
+                  + " : "
+                  + e.getMessage()
+                  + YOUR_QUERY_WAS
+                  + query
+                  + " with parameter: "
+                  + accountName)
           .build();
     }
+  }
+
+  private static String writeTable(ResultSet results, ResultSetMetaData resultsMetaData)
+      throws SQLException {
+    int numColumns = resultsMetaData.getColumnCount();
+    results.beforeFirst();
+    StringBuilder t = new StringBuilder();
+    t.append("<p>");
+
+    if (results.next()) {
+      for (int i = 1; i < (numColumns + 1); i++) {
+        t.append(resultsMetaData.getColumnName(i));
+        t.append(", ");
+      }
+
+      t.append("<br />");
+      results.beforeFirst();
+
+      while (results.next()) {
+        for (int i = 1; i < (numColumns + 1); i++) {
+          t.append(results.getString(i));
+          t.append(", ");
+        }
+        t.append("<br />");
+      }
+    } else {
+      t.append("Query Successful; however no data was returned from this query.");
+    }
+
+    t.append("</p>");
+    return (t.toString());
   }
 }
