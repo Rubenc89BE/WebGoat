@@ -73,7 +73,7 @@ public class MavenWrapperDownloader {
                 }
             }
         }
-        System.out.println("- Downloading from: " + url);
+        System.out.println("- Downloading from: " + redactUrl(url));
 
         File outputFile = new File(baseDirectory.getAbsolutePath(), MAVEN_WRAPPER_JAR_PATH);
         if(!outputFile.getParentFile().exists()) {
@@ -91,6 +91,50 @@ public class MavenWrapperDownloader {
             System.out.println("- Error downloading");
             e.printStackTrace();
             System.exit(1);
+        }
+    }
+
+    /**
+     * Redacts sensitive information from URLs before logging.
+     * Removes userinfo (username:password) and query parameters that may contain tokens.
+     * 
+     * @param urlString the URL to redact
+     * @return redacted URL safe for logging
+     */
+    private static String redactUrl(String urlString) {
+        try {
+            URL url = new URL(urlString);
+            String userInfo = url.getUserInfo();
+            String query = url.getQuery();
+            
+            // Build redacted URL: scheme://host:port/path
+            StringBuilder redacted = new StringBuilder();
+            redacted.append(url.getProtocol()).append("://");
+            
+            // Redact userinfo if present
+            if (userInfo != null) {
+                redacted.append("***:***@");
+            }
+            
+            redacted.append(url.getHost());
+            
+            if (url.getPort() != -1) {
+                redacted.append(":").append(url.getPort());
+            }
+            
+            if (url.getPath() != null) {
+                redacted.append(url.getPath());
+            }
+            
+            // Redact query parameters if present
+            if (query != null) {
+                redacted.append("?***");
+            }
+            
+            return redacted.toString();
+        } catch (Exception e) {
+            // If URL parsing fails, redact the entire URL to be safe
+            return "***";
         }
     }
 

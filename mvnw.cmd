@@ -138,7 +138,9 @@ if exist %WRAPPER_JAR% (
     )
     if "%MVNW_VERBOSE%" == "true" (
         echo Couldn't find %WRAPPER_JAR%, downloading it ...
-        echo Downloading from: %DOWNLOAD_URL%
+        @REM Use PowerShell to redact URL for safe logging
+        for /f "delims=" %%i in ('powershell -Command "$url='%DOWNLOAD_URL%'.Trim('\"'); try { $uri=[System.Uri]$url; $redacted=$uri.Scheme+'://'; if($uri.UserInfo){$redacted+='***:***@'}; $redacted+=$uri.Host; if($uri.Port -ne -1 -and $uri.Port -ne 80 -and $uri.Port -ne 443){$redacted+=':'+$uri.Port}; $redacted+=$uri.AbsolutePath; if($uri.Query){$redacted+='?***'}; $redacted } catch { '***' }"') do set REDACTED_URL=%%i
+        echo Downloading from: !REDACTED_URL!
     )
 
     powershell -Command "&{"^
