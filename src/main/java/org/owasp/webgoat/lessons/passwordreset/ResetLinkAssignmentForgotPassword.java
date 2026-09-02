@@ -23,6 +23,10 @@
 package org.owasp.webgoat.lessons.passwordreset;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -99,16 +103,51 @@ public class ResetLinkAssignmentForgotPassword extends AssignmentEndpoint {
 
   private void fakeClickingLinkEmail(String host, String resetLink) {
     try {
+      String validatedUrl = buildValidatedCallbackUrl(host, resetLink);
       HttpHeaders httpHeaders = new HttpHeaders();
       HttpEntity httpEntity = new HttpEntity(httpHeaders);
       new RestTemplate()
-          .exchange(
-              String.format("http://%s/PasswordReset/reset/reset-password/%s", host, resetLink),
-              HttpMethod.GET,
-              httpEntity,
-              Void.class);
+          .exchange(validatedUrl, HttpMethod.GET, httpEntity, Void.class);
     } catch (Exception e) {
       // don't care
+    }
+  }
+
+  /**
+   * Builds and validates the callback URL for password reset.
+   * Implements domain allowlisting to prevent SSRF attacks.
+   *
+   * @param host The host header value from the request
+   * @param resetLink The password reset token
+   * @return The validated callback URL
+   * @throws IllegalArgumentException if the host is not in the allowlist
+   */
+  private String buildValidatedCallbackUrl(String host, String resetLink) {
+    try {
+      // Validate resetLink format (should be UUID format)
+      if (resetLink == null || !resetLink.matches("^[a-f0-9-]+$")) {
+        throw new IllegalArgumentException("Invalid URL");
+      }
+
+      // Domain allowlist - only allow configured WebWolf host:port combinations
+      // add your allowed domains here
+      Set<String> allowedHosts = new HashSet<>(Arrays.asList(
+          webWolfHost + ":" + webWolfPort,  // e.g., 127.0.0.1:9090
+          webWolfHost                        // e.g., 127.0.0.1 (if port is default/omitted)
+      ));
+
+      // Validate that the host exactly matches one of the allowed hosts
+      if (!allowedHosts.contains(host)) {
+        throw new IllegalArgumentException("Invalid URL");
+      }
+
+      // Construct URL using URI builder for safe URL construction
+      String path = "/PasswordReset/reset/reset-password/" + resetLink;
+      URI uri = new URI("http", host, path, null);
+      
+      return uri.toString();
+    } catch (Exception e) {
+      throw new IllegalArgumentException("Invalid URL");
     }
   }
 }
