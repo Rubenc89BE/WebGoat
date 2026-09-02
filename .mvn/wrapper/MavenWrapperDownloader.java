@@ -16,6 +16,8 @@
 import java.net.*;
 import java.io.*;
 import java.nio.channels.*;
+import java.nio.file.Files;
+import java.security.MessageDigest;
 import java.util.Properties;
 
 public class MavenWrapperDownloader {
@@ -45,6 +47,11 @@ public class MavenWrapperDownloader {
      */
     private static final String PROPERTY_NAME_WRAPPER_URL = "wrapperUrl";
 
+    /**
+     * Name of the property for the expected SHA-256 checksum of the wrapper JAR.
+     */
+    private static final String PROPERTY_NAME_WRAPPER_SHA256SUM = "wrapperSha256Sum";
+
     public static void main(String args[]) {
         System.out.println("- Downloader started");
         File baseDirectory = new File(args[0]);
@@ -54,6 +61,7 @@ public class MavenWrapperDownloader {
         // wrapperUrl parameter.
         File mavenWrapperPropertyFile = new File(baseDirectory, MAVEN_WRAPPER_PROPERTIES_PATH);
         String url = DEFAULT_DOWNLOAD_URL;
+        String expectedChecksum = null;
         if(mavenWrapperPropertyFile.exists()) {
             FileInputStream mavenWrapperPropertyFileInputStream = null;
             try {
@@ -61,6 +69,7 @@ public class MavenWrapperDownloader {
                 Properties mavenWrapperProperties = new Properties();
                 mavenWrapperProperties.load(mavenWrapperPropertyFileInputStream);
                 url = mavenWrapperProperties.getProperty(PROPERTY_NAME_WRAPPER_URL, url);
+                expectedChecksum = mavenWrapperProperties.getProperty(PROPERTY_NAME_WRAPPER_SHA256SUM);
             } catch (IOException e) {
                 System.out.println("- ERROR loading '" + MAVEN_WRAPPER_PROPERTIES_PATH + "'");
             } finally {
@@ -73,6 +82,13 @@ public class MavenWrapperDownloader {
                 }
             }
         }
+        
+        // Enforce HTTPS-only URLs to prevent man-in-the-middle attacks
+        if (!url.toLowerCase().startsWith("https://")) {
+            System.out.println("- ERROR: Only HTTPS URLs are allowed for security reasons. Provided URL: " + url);
+            System.exit(1);
+        }
+        
         System.out.println("- Downloading from: " + url);
 
         File outputFile = new File(baseDirectory.getAbsolutePath(), MAVEN_WRAPPER_JAR_PATH);
@@ -85,6 +101,24 @@ public class MavenWrapperDownloader {
         System.out.println("- Downloading to: " + outputFile.getAbsolutePath());
         try {
             downloadFileFromURL(url, outputFile);
+            
+            // Verify checksum if provided
+            if (expectedChecksum != null && !expectedChecksum.trim().isEmpty()) {
+                System.out.println("- Verifying checksum...");
+                String actualChecksum = calculateSHA256(outputFile);
+                if (!expectedChecksum.equalsIgnoreCase(actualChecksum)) {
+                    System.out.println("- ERROR: Checksum verification failed!");
+                    System.out.println("  Expected: " + expectedChecksum);
+                    System.out.println("  Actual:   " + actualChecksum);
+                    outputFile.delete();
+                    System.exit(1);
+                }
+                System.out.println("- Checksum verification passed");
+            } else {
+                System.out.println("- WARNING: No checksum provided in " + MAVEN_WRAPPER_PROPERTIES_PATH);
+                System.out.println("  Set '" + PROPERTY_NAME_WRAPPER_SHA256SUM + "' property for integrity verification");
+            }
+            
             System.out.println("Done");
             System.exit(0);
         } catch (Throwable e) {
@@ -112,6 +146,33 @@ public class MavenWrapperDownloader {
         fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
         fos.close();
         rbc.close();
+    }
+
+    /**
+     * Calculates the SHA-256 checksum of a file.
+     * @param file the file to calculate the checksum for
+     * @return the hexadecimal representation of the SHA-256 checksum
+     * @throws Exception if an error occurs during checksum calculation
+     */
+    private static String calculateSHA256(File file) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (InputStream fis = Files.newInputStream(file.toPath())) {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                digest.update(buffer, 0, bytesRead);
+            }
+        }
+        byte[] hashBytes = digest.digest();
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hashBytes) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
 
 }
