@@ -29,6 +29,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.regex.Pattern;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -43,6 +44,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class SqlInjectionLesson3 extends AssignmentEndpoint {
 
   private final LessonDataSource dataSource;
+  
+  // Pattern to detect schema-qualified identifiers and dangerous SQL operations
+  private static final Pattern DANGEROUS_PATTERN = Pattern.compile(
+      "(?i).*\\b(INFORMATION_SCHEMA|SYSTEM_SCHEMA|PUBLIC|SYS|DBA|pg_catalog|mysql|performance_schema|sys)\\b.*|" +
+      ".*[a-zA-Z_][a-zA-Z0-9_]*\\s*\\.\\s*[a-zA-Z_][a-zA-Z0-9_]*\\s*\\..*|" + // schema.table.column
+      ".*\\b(GRANT|REVOKE|CREATE\\s+USER|DROP\\s+USER|ALTER\\s+USER|CREATE\\s+ROLE|DROP\\s+ROLE|CREATE\\s+SCHEMA|DROP\\s+SCHEMA|SHUTDOWN|SET\\s+PASSWORD)\\b.*|" +
+      ".*\\b(xp_cmdshell|sp_executesql|EXEC|EXECUTE)\\b.*|" +
+      ".*;\\s*(CREATE|DROP|ALTER|GRANT|REVOKE|SHUTDOWN|INSERT|SELECT)\\b.*" // Multiple statements
+  );
 
   public SqlInjectionLesson3(LessonDataSource dataSource) {
     this.dataSource = dataSource;
@@ -55,9 +65,18 @@ public class SqlInjectionLesson3 extends AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
+    // Validate query to prevent unrestricted SQL execution
+    if (!isQuerySafe(query)) {
+      return failed(this)
+          .output("Query contains unauthorized operations or attempts to access restricted schemas")
+          .build();
+    }
+    
     try (Connection connection = dataSource.getConnection()) {
       try (Statement statement =
           connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY)) {
+        // Set a query timeout to prevent resource exhaustion
+        statement.setQueryTimeout(5);
         Statement checkStatement =
             connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY);
         statement.executeUpdate(query);
@@ -80,5 +99,47 @@ public class SqlInjectionLesson3 extends AssignmentEndpoint {
     } catch (Exception e) {
       return failed(this).output(this.getClass().getName() + " : " + e.getMessage()).build();
     }
+  }
+  
+  /**
+   * Validates that the query is safe for lesson purposes by checking for:
+   * - Schema-qualified table access (e.g., other_schema.table)
+   * - Access to system schemas (INFORMATION_SCHEMA, etc.)
+   * - Dangerous operations (GRANT, CREATE USER, etc.)
+   * - Multiple statements (SQL injection chaining)
+   * - Stored procedure execution
+   */
+  private boolean isQuerySafe(String query) {
+    if (query == null || query.trim().isEmpty()) {
+      return false;
+    }
+    
+    // Check against dangerous patterns
+    if (DANGEROUS_PATTERN.matcher(query).matches()) {
+      return false;
+    }
+    
+    // Ensure query starts with UPDATE (case-insensitive)
+    String trimmedQuery = query.trim();
+    if (!trimmedQuery.matches("(?i)^UPDATE\\b.*")) {
+      return false;
+    }
+    
+    // Ensure query only targets employees table (not schema-qualified)
+    if (!trimmedQuery.matches("(?i)^UPDATE\\s+employees\\b.*")) {
+      return false;
+    }
+    
+    // Check for multiple statements (semicolon followed by more SQL)
+    String[] statements = query.split(";");
+    if (statements.length > 1) {
+      for (int i = 1; i < statements.length; i++) {
+        if (!statements[i].trim().isEmpty()) {
+          return false;
+        }
+      }
+    }
+    
+    return true;
   }
 }
